@@ -1,0 +1,13 @@
+# 音频文件（版权）不入库，只提交 beats.json / timeline.json
+dance/songs/*.mp3
+dance/songs/*.wav
+dance/songs/*.flac
+dance/songs/*.ogg
+dance/songs/*.m4a
+
+# 训练产物
+*.onnx
+*.pt
+logs/
+videos/
+__pycache__/

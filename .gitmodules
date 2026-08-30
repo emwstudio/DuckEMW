@@ -1,0 +1,3 @@
+[submodule "third_party/microduck_rl"]
+	path = third_party/microduck_rl
+	url = https://github.com/emwstudio/microduck_rl
