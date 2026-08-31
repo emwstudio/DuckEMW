@@ -63,3 +63,10 @@
 - 《牛来》编舞（dance/songs/牛来.timeline.json）：0-3 拍 call_out（呼喊）→ 4-7 拍 head_bob（DJ 预热）→ 8-35 拍 climax 一贯到底（"牛来"hook 必中正拍点头锤）。v5 兼容版（无 call_out）在 牛来.v5compat.timeline.json。
 - `scripts/stage_show.py`：N 只鸭子同台齐舞（MjSpec.attach 多机器人 + 共享 timeline + 机位 front/tracking/orbit，1080p）。首个 6 鸭环绕视频：artifacts/stage_v5_6ducks_orbit.mp4。
 - **策略-时间线兼容性**：move id 编码随版本变化（v1-4: one-hot(3)；v5: 2-bit(0-3)；v6+: 3-bit(0-4)）。时间线含策略没见过的舞步编号 = 越界输入必摔，验证前先核对。
+
+
+## 舞台视频（2026-08-31）
+
+- `scripts/stage_show.py` 最终能力：1-24+ 只编队（row/arc/grid/army 阅兵方阵）、机位 front/tracking/orbit/cinematic（关键帧运镜）、1080p/4K 精确 16:9。
+- 终版：`stage_v10s_army12_cinematic_4k.mp4`（12 鸭方阵 + 电影运镜 v8）。
+- 运镜迭代教训：punch 时点用「用户反馈区间收敛」校准（hook：7.25/10.65/14.72s）；推拉要**同向通过** punch 点（方向反转 = 顿挫）；折返放在 punch 之间的平缓段渐变。
