@@ -26,7 +26,7 @@ import json
 import sys
 from pathlib import Path
 
-MOVE_NAMES = ["squat_bounce", "weight_shift", "head_bob", "step_touch", "spin"]
+MOVE_NAMES = ["squat_bounce", "weight_shift", "head_bob", "climax", "call_out"]
 
 
 def main() -> int:
@@ -34,6 +34,9 @@ def main() -> int:
     ap.add_argument("beats", type=Path, help="beats.json 路径")
     ap.add_argument("--moves", default="0,1,2", help="使用的舞步编号，逗号分隔（默认 0,1,2 温和三件套）")
     ap.add_argument("--segment-beats", type=int, default=8, help="每段几拍换一个舞步（默认 8）")
+    ap.add_argument("--map", default=None,
+        help='显式编舞：逗号分隔的 "起始拍:舞步" 段列表，覆盖 --moves/--segment-beats。'
+             '例：--map 0:1,4:2,8:3,24:1,25:3')
     ap.add_argument("-o", "--out", type=Path, default=None)
     args = ap.parse_args()
 
@@ -43,6 +46,14 @@ def main() -> int:
         print("节拍数太少，无法分段", file=sys.stderr)
         return 1
 
+    # --map 模式：显式段落表
+    map_segments = None
+    if args.map:
+        map_segments = []
+        for part in args.map.split(","):
+            b, m = part.split(":")
+            map_segments.append((int(b), int(m)))
+
     moves = [int(m) for m in args.moves.split(",")]
     for m in moves:
         if not 0 <= m < len(MOVE_NAMES):
@@ -51,9 +62,19 @@ def main() -> int:
 
     segments = []
     n = len(beat_times)
-    for seg_idx, start in enumerate(range(0, n, args.segment_beats)):
-        end = min(start + args.segment_beats, n - 1)
-        move = moves[seg_idx % len(moves)]
+    if map_segments:
+        # 显式编舞：每段的结束拍 = 下一段的起始拍，末段到最后
+        starts = [b for b, _ in map_segments]
+        plan = []
+        for i, (b, m) in enumerate(map_segments):
+            e = (starts[i + 1] - 1) if i + 1 < len(starts) else n - 1
+            plan.append((b, e, m))
+    else:
+        plan = [
+            (start, min(start + args.segment_beats, n - 1), moves[i % len(moves)])
+            for i, start in enumerate(range(0, n, args.segment_beats))
+        ]
+    for start, end, move in plan:
         segments.append(
             {
                 "move": move,
