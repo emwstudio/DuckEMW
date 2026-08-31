@@ -11,3 +11,6 @@ dance/songs/*.m4a
 logs/
 videos/
 __pycache__/
+
+# 验证产物（视频/CSV 体积大，不入库）
+artifacts/
