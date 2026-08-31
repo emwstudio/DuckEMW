@@ -49,8 +49,17 @@ def main() -> int:
     y, sr = librosa.load(args.audio, sr=None, mono=True)
     duration = float(len(y) / sr)
     tempo, beat_frames = librosa.beat.beat_track(y=y, sr=sr)
-    bpm = normalize_bpm(float(np.atleast_1d(tempo)[0]))
-    beat_times = librosa.frames_to_time(beat_frames, sr=sr).round(4).tolist()
+    beat_times_arr = librosa.frames_to_time(beat_frames, sr=sr)
+
+    # BPM 以节拍间隔为准（用首尾跨度，抗逐拍量化抖动），而非 tempo 估计器的
+    # 输出——二者在合成/量化音频上可能差几个 BPM，按错误 BPM 锚定相位会漂移。
+    if len(beat_times_arr) >= 8:
+        span = float(beat_times_arr[-1] - beat_times_arr[0])
+        bpm = 60.0 * (len(beat_times_arr) - 1) / span
+    else:
+        bpm = float(np.atleast_1d(tempo)[0])
+    bpm = normalize_bpm(bpm)
+    beat_times = np.round(beat_times_arr, 4).tolist()
 
     name = args.audio.stem
     out = args.out or Path(__file__).parent / "songs" / f"{name}.beats.json"

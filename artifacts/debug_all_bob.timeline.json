@@ -69,16 +69,16 @@
   "duration": 32.0,
   "segments": [
     {
-      "move": 0,
-      "move_name": "squat_bounce",
+      "move": 2,
+      "move_name": "head_bob",
       "start_beat": 0,
       "end_beat": 8,
       "t_start": 0.5108,
       "t_end": 5.0155
     },
     {
-      "move": 1,
-      "move_name": "weight_shift",
+      "move": 2,
+      "move_name": "head_bob",
       "start_beat": 8,
       "end_beat": 16,
       "t_start": 4.5279,
@@ -93,16 +93,16 @@
       "t_end": 13.0264
     },
     {
-      "move": 0,
-      "move_name": "squat_bounce",
+      "move": 2,
+      "move_name": "head_bob",
       "start_beat": 24,
       "end_beat": 32,
       "t_start": 12.5156,
       "t_end": 17.0202
     },
     {
-      "move": 1,
-      "move_name": "weight_shift",
+      "move": 2,
+      "move_name": "head_bob",
       "start_beat": 32,
       "end_beat": 40,
       "t_start": 16.5326,
@@ -117,16 +117,16 @@
       "t_end": 25.0311
     },
     {
-      "move": 0,
-      "move_name": "squat_bounce",
+      "move": 2,
+      "move_name": "head_bob",
       "start_beat": 48,
       "end_beat": 56,
       "t_start": 24.5203,
       "t_end": 29.0249
     },
     {
-      "move": 1,
-      "move_name": "weight_shift",
+      "move": 2,
+      "move_name": "head_bob",
       "start_beat": 56,
       "end_beat": 61,
       "t_start": 28.5141,
