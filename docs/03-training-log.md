@@ -70,3 +70,54 @@
 - `scripts/stage_show.py` 最终能力：1-24+ 只编队（row/arc/grid/army 阅兵方阵）、机位 front/tracking/orbit/cinematic（关键帧运镜）、1080p/4K 精确 16:9。
 - 终版：`stage_v10s_army12_cinematic_4k.mp4`（12 鸭方阵 + 电影运镜 v8）。
 - 运镜迭代教训：punch 时点用「用户反馈区间收敛」校准（hook：7.25/10.65/14.72s）；推拉要**同向通过** punch 点（方向反转 = 顿挫）；折返放在 punch 之间的平缓段渐变。
+
+## 上游合并（2026-09-03）
+
+- develop 合并到 upstream/develop @ 5bbe963（上游领先 9 个提交）。先把 stage_show.py 的未提交运镜修正提交为 `cb96c18 stage_show: shift niulai hook2 punch to 10.75s`，再 merge（非 rebase，保留历史）。
+- **零冲突自动合并**。上游把 "allcollisions" 模型家族改名 "groundcontact"（robot/scene/config 全套重命名 + 新增真全碰撞 robot_allcollisions.xml/scene_allcollisions.xml）；我们的增量（dance 任务、scripts）全部基于 walk 模型，零处引用旧名，无需对齐。
+- 上游新增 `uv run publish`（把策略按 daemon 加载的格式发布到 HF Hub）与 --hf-jobs 拦截修复。
+- **测试**：`uv run --with pytest pytest tests/ -q` → 231 passed / 1 skipped / 0 failed。注意本机两个坑：① venv 里 `mjlab_microduck.pth` 被打了 macOS UF_HIDDEN 标志，CPython 3.12 的 site 会跳过 hidden .pth → 包不可导入（`chflags nohidden` 修复）；② 新上游测试 test_hf_jobs_flag.py 的子进程探针在 `--with pytest` overlay 里看不到 venv 的包，需 `PYTHONPATH=src uv run --with pytest pytest tests/ -q`。
+- **新配色**：CAD 重导出后鸭子主色从黄变橙（头壳橙边、橙脚掌）。stage_show 渲染冒烟正常（1 鸭全程未摔）。
+- 后续注意：引用 groundcontact 家族请用新名；真全碰撞模型（robot_allcollisions.xml）是另一个新模型，别和改名后的 groundcontact 混淆。
+
+## 徒脚极速 Sprint（2026-09-03，Phase 0-1）
+
+- **目标**：追上并超越 Hannes von Essen 的 1.6 m/s（同款 MicroDuck，参考 artifacts/references/hannes_1.6ms_run.mp4）。
+- **Phase 0 基线**（scripts/walk_speed_test.py，headless + BAM M6 + 61D 契约）：官方 alpha_walking.onnx 实测 **cmd 0.4 → 0.164 m/s**，cmd 1.0 → 0.63 m/s（且高命令下明显跑偏，yaw 漂 >50°）。策略严重欠跟踪 —— 名义"基线 0.4"实际只有 ~0.17 m/s。输出 artifacts/walk_probe/{probe.csv,probe.mp4}。
+- **环境坑（复现）**：.pth 又被 macOS UF_HIDDEN 监视器重新隐藏（见上文 2026-09-03 节），`chflags -R nohidden .venv` 后立即跑可抢过监视器窗口。
+- **Phase 1**：新任务 `Mjlab-Sprint-Flat-MicroDuck`（tasks/microduck_sprint_env_cfg.py，基于 velocity 配方包装）：lin_vel_x (-0.2, 2.0)、lin_vel_y ±0.1 / ang ±0.5 收窄、turn-in-place 关闭、rel_forward_envs=0.5、air_time 窗口上移 [0.20, 0.45]s 鼓励腾空相、track std 放宽 sqrt(0.25) 保高速梯度、anti-violence 正则原样保留。tests/test_sprint_cfg.py 9 项 + 全量 **243 passed / 1 skipped**。
+- upstream/develop @ 29e887e 已并入（零冲突）；roller gauntlet/GP 6 个未跟踪文件已提交（fa32086）。
+
+## Sprint 配方迭代（2026-09-03 晚，AutoDL pro-78811e875f25 / 4090D）
+
+- **评估工具**：`scripts/eval_sprint_speed.py`（warp 原生环境内测 checkpoint 真实速度，绕开一切 harness 差异）；`scripts/walk_speed_test.py --policy/--outdir/--ladder`（CPU BAM headless 复测 + 出片）。**教训复诵：配方结论一律以部署侧实测为准，不看训练指标。**
+- **v1（be2c523）**：站桩 0.006 m/s。机制：25% standing envs 白拿奖励质量 + air_time 固定 0.20s 下限（阶跃函数，0.05s 行走步态永远够不到，全程奖励 ≈0.0001）+ action_rate -1.0 摆腿税 + upright 过紧 → 「无视命令站桩」是 argmax。
+- **v2（996defe）**：腾空相出来了（air_time_mean 0.17s）但 **error_vel_xy 2.1 m/s 不动**，实测 0.04-0.11 m/s —— 原地高抬腿刷 air_time，无推进。加性奖励的未约束项必被 hack。
+- **v3（9c17499）**：air_time 前向门控（× clamp(vx/cmd,0,1)，原地腾空支付 0）+ track 权重 4.0 主导 + init_velocity_prob=0.3 逆向出生（高速前沿要有在策略数据）。实测：error_vel_xy 2.1→1.18，**最快 env 1.43 m/s**（cmd 2.0），propulsion 解锁但方差大、摔倒多（前沿刚到，未巩固）。
+- **Phase 3**：v3 同方续训 4000 迭代（resume model_1999，总 6000 迭代，~2h10m/¥4）。rsl_rl resume 语义：--agent.max_iterations 是「再训 N 轮」不是总数。
+- **环境坑备忘**：实例 uv 必须 `UV_DEFAULT_INDEX=清华镜像 --no-sync`（否则卡境外 PyPI 10 分钟）；wandb 无 key 用 `WANDB_MODE=offline`；实例 repo 有旧改动挡 merge 时先 diff 再丢。
+
+## 破纪录作战（2026-09-04 凌晨，续 Hannes 血脉）
+
+- **自研 sprint v1-v4 全部 plateau ≤1.43**（详见上节）。改走公开配方：HannesVonEssen/microduck-running（Vottivott/microduck-playground@828d950）。核心配方：running_forward_progress 线性前进奖励（clamp(vx,0,cap)/cap，权重 5.0，无高斯天花板）+ 命令速度 min/max 双升课程（每 750 轮 +0.15 到 2.2）+ 极轻正则 + 3% 站立桶 + 12195 轮训练量。
+- **测量链验证**：他的 policy.onnx 在我们 warp 环境实测 cmd 2.2 → mean 1.451 / max 1.707，与其宣称 1.651 一致。
+- **实例 PYTHONPATH 复用 venv**：playground 与 microduck_rl 的 mjlab/torch 版本一致（1.3.0 / 2.9.1），`PYTHONPATH=playground/src` + 现有 .venv 即可跑，免 2GB 慢下载（当晚 tuna 镜像仅 546 B/s）。
+- **坑**：超时被杀的 git clone 僵尸进程会 rm -rf 目标目录（playground 被连锅端一次，tarball 重建）；实例 /usr/share 只读；headless 渲染走 MUJOCO_GL=osmesa（装 libosmesa6），EGL 在此容器不可用。
+- **续训 12195+2000（鲁棒化配方）**：model_14194 官方电池 mean 1.633 / p90 1.753（均值未破，鲁棒化付速度税）。
+- **出片管线**（scripts/running_show.py，warp 渲染 + spec_fn 注入软垫墙 x=8m）：**model_14194 峰值冲击 1.726 m/s 撞墙**，慢动作收尾，artifacts/running_show_14194_v2.mp4。撞击阈值教训：判定线要贴墙（7.62m），提前 0.34m 会拍不到真撞。
+- **11748 速度支线推进中**（TARGET 2.4 / CAP 2.5、无鲁棒化，CURRICULUM_START_ITERATION=8750 对齐 stage）：冲均值纪录。
+
+## 目标升级 1.9（2026-09-04 晚）
+
+- Max Sumrall（X: 1.8/1.9 m/s "if sim is to be believed"）无公开仓库/配方（HF 仅 cartwheel 视频数据集，GitHub 无 microduck 仓库）。其视频遥测：读数 1.5-1.88 波动，**1.9 是瞬时峰值不是持续均值**——与我们 11748 血脉（p90 1.796）同级。参考视频存 artifacts/references/maxsumrall_1.9ms.mp4。
+- 出片迭代反馈（用户）：常速不 slow-mo；硬墙反弹（solref 0.03）+ 求解器加固（iterations 30/nconmax 200，治撞后嵌地）；**出生 yaw 必须锁 0**（默认 ±π，heading 漂移会错过 3m 宽的墙——一次"未撞墙"渲染就是这么废的）。
+- **决胜局**：从零按 Hannes 配方训 13500 轮（TARGET 2.5 / CAP 2.6 / stage 750 / forward_progress 5.0 / action_rate -0.10），目标持续均值 1.8+。~7h/¥13，夜间跑。
+
+## 13.5k 大训结果 + 收官（2026-09-05 凌晨）
+
+- **13,500 轮从零训（TARGET 2.5/CAP 2.6）官方电池**：ck13250 mean **1.659** / p90 1.793（最佳），ck13499 mean 1.651，ck12500 mean 1.643。对照：Hannes 11748 前沿 1.683 / 12195 发布 1.651。**打平他的发布版，未破 11748 前沿**——该配方在 1.65-1.69 存在平台期，续训/扩带都试过（v3 6000 轮、11748+3000 @2.4、12195+2000），均回弹到 ~1.63。
+- **峰值口径**：撞墙峰值最高 1.805（14194，yaw 锁 0 后重渲）；Max Sumrall 的 1.9 同为瞬时峰值口径（遥测 1.5-1.88）——**峰值口径我们已同级，均值口径还差 0.02-0.03**。
+- 出片：`stable_run_13250.mp4`（14s 稳定奔跑，峰值 1.643）、`show_14194_2.2_yawfix.mp4`（撞墙 1.805）、`running_show_final.mp4`（1.622 干净版）。
+- **速度-换挡观察**：课程换挡（如 2.25/2.50 档）必有 forward_progress 短暂回落（~0.3），属适应期非 pacing 错误，~300 轮内恢复。
+- **关机**：pro-78811e875f25 已 off（34h × ¥1.88 ≈ ¥64，余额 ¥18.43）。环境在数据盘保留，下次开机直接用。
+- 全部成果已拉回 artifacts/（checkpoint ×4、ONNX ×3、评估 JSON ×11、成片 ×5）。
